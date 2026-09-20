@@ -44,6 +44,24 @@ def mean_gross_margin(history: list[Financials]) -> float:
     return statistics.mean(margins)
 
 
+def mean_opex_pct(history: list[Financials]) -> float:
+    """Average opex (gross_profit − operating_income) as % of revenue over full history."""
+    if len(history) < 10:
+        raise ValueError(f"Need at least 10 years of history for mid-cycle derivation, got {len(history)}")
+    pcts = [float((f.gross_profit - f.operating_income) / f.revenue) for f in history]
+    return statistics.mean(pcts)
+
+
+def avg_wc_days(history: list[Financials]) -> tuple[float, float, float]:
+    """Average DIO, DSO, DPO (days of revenue) over history."""
+    if not history:
+        raise ValueError("History must not be empty")
+    dios = [float(f.inventory / f.revenue * 365) for f in history]
+    dsos = [float(f.receivables / f.revenue * 365) for f in history]
+    dpos = [float(f.payables / f.revenue * 365) for f in history]
+    return statistics.mean(dios), statistics.mean(dsos), statistics.mean(dpos)
+
+
 def detect_flags(history: list[Financials]) -> NormalisationFlags:
     """Scan history and return any normalisation flags that need analyst review."""
     flags = NormalisationFlags()

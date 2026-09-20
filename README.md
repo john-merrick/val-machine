@@ -9,27 +9,85 @@ A systematic valuation engine for US specialty distributors. Deterministic, repr
 ## Requirements
 
 - Python 3.11+
-- `EDGAR_IDENTITY` environment variable (your email, required by SEC fair-access policy) — only needed for ingest from SEC filings
+- `EDGAR_IDENTITY` environment variable (your email, required by SEC fair-access policy)
 
 ## Setup
 
 ```bash
-# Create and activate a virtual environment
 python -m venv .venv
 source .venv/bin/activate
-
-# Install the package with dev dependencies
 pip install -e ".[dev]"
 ```
 
-## Running the model
+## Workflow
 
-### CLI (recommended)
-
-After `pip install -e .`, the `distval` command is available:
+The full process for adding and valuing a company runs entirely from the CLI:
 
 ```bash
-distval POOL --net-debt 1469 --shares-diluted 39.5 --price 335 --as-of 2024-02-22
+export EDGAR_IDENTITY=you@example.com
+
+# 1. Inspect 10-year filing history
+distval ingest GWW --as-of 2024-01-01
+
+# 2. Get mid-cycle summary and normalisation flags
+distval normalise GWW --as-of 2024-01-01
+
+# 3. Author distval/companies/gww.yaml (see "Adding a company" below)
+
+# 4. Run the valuation
+distval value GWW --net-debt 1234 --shares-diluted 45.2 --price 850 --save
+```
+
+`python -m distval` works as an alternative if the console script isn't on your PATH.
+
+---
+
+## Commands
+
+### `distval ingest <ticker>`
+
+Fetches up to N years of 10-K filings from SEC EDGAR and prints a table of as-reported financials. Requires `EDGAR_IDENTITY`.
+
+```
+distval ingest POOL --as-of 2024-01-01 --years 10
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--as-of YYYY-MM-DD` | today | Only include filings on or before this date |
+| `--years N` | `10` | Number of fiscal years to fetch |
+| `--save` | off | Write financials as JSON to `./snapshots/` |
+
+---
+
+### `distval normalise <ticker>`
+
+Fetches filing history, computes mid-cycle gross margin, opex %, and average working capital days, and surfaces any normalisation flags. Use this output to guide writing the company YAML.
+
+```
+distval normalise POOL --as-of 2024-01-01
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--as-of YYYY-MM-DD` | today | Point-in-time cutoff |
+| `--years N` | `10` | Years of history (minimum 10 required) |
+
+Flags reported (never auto-corrected):
+
+- `capex_exceeds_da` — capex persistently above D&A for 3+ years
+- `inventory_outpacing_revenue` — inventory growing >10pp faster than revenue
+- `elevated_gross_margin` — current margin >1.5 std devs above 10-year mean
+- `organic_growth_unclear` — acquisitive company with no organic disclosure
+
+---
+
+### `distval value <ticker>`
+
+Runs the DCF from a committed `companies/<ticker>.yaml` config.
+
+```
+distval value POOL --net-debt 1469 --shares-diluted 39.5 --price 335 --as-of 2024-02-22
 ```
 
 ```
@@ -52,100 +110,22 @@ distval POOL --net-debt 1469 --shares-diluted 39.5 --price 335 --as-of 2024-02-2
 ====================================================
 ```
 
-**Required flags:**
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--net-debt M` | yes | Net debt in millions (total_debt − cash) |
+| `--shares-diluted M` | yes | Diluted shares outstanding in millions |
+| `--minority-interest M` | no (default: 0) | Minority interest in millions |
+| `--price USD` | no | Share price; enables upside calculation |
+| `--as-of YYYY-MM-DD` | no (default: today) | Valuation date |
+| `--save` | no | Write JSON snapshot to `./snapshots/` |
 
-| Flag | Description |
-|------|-------------|
-| `--net-debt M` | Net debt in millions (total_debt − cash) |
-| `--shares-diluted M` | Diluted shares in millions |
-
-**Optional flags:**
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--minority-interest M` | `0` | Minority interest in millions |
-| `--price USD` | — | Share price; enables upside calculation |
-| `--as-of YYYY-MM-DD` | today | Valuation date |
-| `--save` | off | Write JSON snapshot to `./snapshots/` |
-
-`python -m distval` also works if the console script isn't on your PATH.
-
-### Python API
-
-```python
-from decimal import Decimal
-from datetime import date
-
-from distval.engine import value
-from distval.loader import load_drivers
-from distval.macro import DEFAULT_MACRO
-from distval.record import write_snapshot
-
-# Load analyst drivers from companies/fast.yaml
-drivers = load_drivers("FAST")
-
-# Run the valuation (all dollar values in millions USD)
-val = value(
-    drivers=drivers,
-    macro=DEFAULT_MACRO,
-    net_debt=Decimal("80"),          # total_debt - cash
-    minority_interest=Decimal("0"),
-    shares_diluted=Decimal("571"),
-    price=Decimal("63.00"),          # spot price for upside calculation (optional)
-    as_of=date(2024, 1, 1),
-)
-
-print(f"Value per share: ${val.value_per_share:.2f}")
-print(f"Upside: {val.upside_pct:.1f}%")
-
-# Write a snapshot to snapshots/<ticker>_<hash[:12]>.json
-path = write_snapshot(val)
-print(f"Snapshot written: {path}")
-```
-
-### Macro assumptions
-
-Macro assumptions are shared across all companies and live in `distval/macro.py`. Override them at runtime:
-
-```python
-from distval.macro import MacroAssumptions
-
-macro = MacroAssumptions(
-    sustainable_risk_free_rate=0.04,   # 4% risk-free rate
-    equity_risk_premium=0.05,          # 5% equity risk premium
-    market_avg_multiple=15.0,          # market average NOPAT multiple
-)
-```
-
-### Ingesting financials from SEC EDGAR
-
-To pull historical financials directly from filings:
-
-```bash
-export EDGAR_IDENTITY=you@example.com
-```
-
-```python
-from datetime import date
-from distval.ingest import fetch_financials
-
-history = fetch_financials("FAST", as_of=date(2024, 1, 1), years=10)
-```
-
-This returns a list of `Financials` objects, most recent first, containing only filings available as of `as_of` (no lookahead bias).
-
-## Covered companies
-
-| Ticker | Company | Config |
-|--------|---------|--------|
-| FAST | Fastenal | `distval/companies/fast.yaml` |
-| POOL | Pool Corporation | `distval/companies/pool.yaml` |
+---
 
 ## Adding a company
 
-1. Create `distval/companies/<ticker>.yaml` (lowercase filename, uppercase ticker field). Use an existing config as a reference.
+1. Run `distval ingest` and `distval normalise` to anchor the mid-cycle figures.
 
-2. Required fields:
+2. Create `distval/companies/<ticker>.yaml` (lowercase filename, uppercase ticker field):
 
 ```yaml
 ticker: TICK
@@ -162,28 +142,55 @@ dpo: 50.0    # days payables outstanding
 maintenance_capex_pct_sales: 0.02
 tax_rate: 0.25
 
-mid_cycle_ebit: 100.0       # key output of your normalisation work
-duration_score: 5            # 1–10: how durable are the competitive advantages?
-stability_score: 5            # 1–10: through-cycle FCF consistency?
+mid_cycle_ebit: 100.0    # key output of your normalisation work
+duration_score: 5         # 1–10: how durable are the competitive advantages?
+stability_score: 5         # 1–10: through-cycle FCF consistency?
 
-other_elements: {}           # optional bridge items (e.g. surplus assets)
+other_elements: {}        # optional bridge items (e.g. surplus assets)
 ```
 
-3. Run via CLI or Python API:
+3. Run the valuation:
 
 ```bash
-distval TICK --net-debt 100 --shares-diluted 50
+distval value TICK --net-debt 100 --shares-diluted 50
 ```
 
+---
+
+## Covered companies
+
+| Ticker | Company | Config |
+|--------|---------|--------|
+| FAST | Fastenal | `distval/companies/fast.yaml` |
+| POOL | Pool Corporation | `distval/companies/pool.yaml` |
+
+---
+
+## Macro assumptions
+
+Shared across all companies. Live in `distval/macro.py`:
+
+| Assumption | Default |
+|------------|---------|
+| Risk-free rate | 4.0% |
+| Equity risk premium | 5.0% → discount rate 9.0% |
+| Market average multiple | 15.0x NOPAT |
+
+To override at runtime (Python API only):
+
 ```python
-drivers = load_drivers("TICK")
-val = value(drivers, macro, net_debt, minority_interest, shares_diluted, price, as_of)
+from distval.macro import MacroAssumptions
+macro = MacroAssumptions(sustainable_risk_free_rate=0.04, equity_risk_premium=0.05, market_avg_multiple=15.0)
 ```
+
+---
 
 ## Running tests
 
 ```bash
 pytest
+# with coverage
+pytest --cov=distval --cov-report=term-missing
 ```
 
 The test suite includes:
@@ -194,16 +201,13 @@ The test suite includes:
 - **Normalisation tests** (`test_normalise.py`) — flag detection logic
 - **Schema tests** (`test_schema.py`) — validation rules on `Drivers` and `Financials`
 
-```bash
-# Run with coverage
-pytest --cov=distval --cov-report=term-missing
-```
+---
 
 ## Project layout
 
 ```
 distval/
-  cli.py          # CLI entry point — distval <ticker> [flags]
+  cli.py          # CLI entry point — distval {value,ingest,normalise}
   __main__.py     # python -m distval support
   schema.py       # Pydantic contracts — Financials, Drivers, Valuation
   macro.py        # Shared macro assumptions: RFR, ERP, market multiple
@@ -214,7 +218,7 @@ distval/
   record.py       # Write JSON snapshot per run
   companies/      # One YAML per ticker (fast.yaml, pool.yaml, ...)
   tests/
-snapshots/        # Written by record.py (gitignored)
+snapshots/        # Written by --save flag (gitignored)
 ```
 
 ## Design constraints
@@ -223,6 +227,6 @@ snapshots/        # Written by record.py (gitignored)
 - Discount rate and market multiple live in `macro.py`, never in a company config
 - Money values are `Decimal`; rates are `float` — never mixed
 - Every ingest call takes an `as_of` date — point-in-time, no lookahead bias
-- No terminal growth rate parameter anywhere — if you think you need one, something else is wrong
+- No terminal growth rate parameter anywhere
 - No CAPM, no beta, no company-specific discount rate
 - Normalisation flags are reported to the analyst; nothing is auto-corrected

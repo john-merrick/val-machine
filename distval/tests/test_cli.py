@@ -10,6 +10,7 @@ from distval.cli import build_parser, main
 
 # POOL FY2023 balance-sheet figures used across tests (in millions)
 _POOL_ARGV = [
+    "value",
     "POOL",
     "--net-debt", "1469",
     "--shares-diluted", "39.5",
@@ -21,6 +22,7 @@ class TestParser:
     def test_required_args_parsed(self):
         parser = build_parser()
         ns = parser.parse_args(_POOL_ARGV)
+        assert ns.command == "value"
         assert ns.ticker == "POOL"
         assert ns.net_debt == Decimal("1469")
         assert ns.shares_diluted == Decimal("39.5")
@@ -42,8 +44,24 @@ class TestParser:
     def test_bad_date_raises(self):
         parser = build_parser()
         with pytest.raises(SystemExit):
-            parser.parse_args([*_POOL_ARGV[:1], "--net-debt", "1469",
+            parser.parse_args(["value", "POOL", "--net-debt", "1469",
                                "--shares-diluted", "39.5", "--as-of", "not-a-date"])
+
+    def test_ingest_parser(self):
+        parser = build_parser()
+        ns = parser.parse_args(["ingest", "GWW", "--as-of", "2024-01-01", "--years", "5"])
+        assert ns.command == "ingest"
+        assert ns.ticker == "GWW"
+        assert ns.as_of == date(2024, 1, 1)
+        assert ns.years == 5
+        assert ns.save is False
+
+    def test_normalise_parser(self):
+        parser = build_parser()
+        ns = parser.parse_args(["normalise", "GWW", "--as-of", "2024-01-01"])
+        assert ns.command == "normalise"
+        assert ns.ticker == "GWW"
+        assert ns.years == 10
 
 
 class TestMain:
@@ -73,7 +91,7 @@ class TestMain:
         assert "Current price" in out
 
     def test_unknown_ticker_exits_nonzero(self, capsys):
-        rc = main(["NOTREAL", "--net-debt", "100", "--shares-diluted", "10"])
+        rc = main(["value", "NOTREAL", "--net-debt", "100", "--shares-diluted", "10"])
         assert rc != 0
         err = capsys.readouterr().err
         assert "error" in err.lower()
