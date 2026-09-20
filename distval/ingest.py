@@ -3,10 +3,14 @@ Ingest financial data from SEC EDGAR filings via edgartools.
 Populates Financials objects from 10-K filings, point-in-time by construction.
 All calls take an as_of date — never silently pull restated figures.
 """
+import logging
+import os
 from datetime import date
 from decimal import Decimal
 
 from distval.schema import Financials
+
+logger = logging.getLogger(__name__)
 
 
 def fetch_financials(ticker: str, as_of: date, years: int = 10) -> list[Financials]:
@@ -15,6 +19,8 @@ def fetch_financials(ticker: str, as_of: date, years: int = 10) -> list[Financia
 
     Only filings with a filed_date <= as_of are returned, enforcing point-in-time
     discipline. No lookahead bias.
+
+    Requires EDGAR_IDENTITY env var (your email, per SEC fair-access policy).
 
     Raises:
         ValueError: if the company does not file a 10-K (e.g. foreign filers)
@@ -25,23 +31,37 @@ def fetch_financials(ticker: str, as_of: date, years: int = 10) -> list[Financia
     except ImportError as e:
         raise ImportError("edgartools is required for ingest. Install with: pip install edgartools") from e
 
-    edgar.set_identity("isaac.g.boorer@gmail.com")
+    identity = os.environ.get("EDGAR_IDENTITY")
+    if not identity:
+        raise RuntimeError(
+            "Set the EDGAR_IDENTITY environment variable to your email address. "
+            "This is required by the SEC fair-access policy. "
+            "Example: export EDGAR_IDENTITY=you@example.com"
+        )
+    edgar.set_identity(identity)
+
     company = edgar.Company(ticker)
     filings_10k = company.get_filings(form="10-K")
 
     results: list[Financials] = []
+    skipped = 0
     for filing in filings_10k:
         if filing.filing_date > as_of:
             continue
 
         try:
             fin = _parse_10k(ticker, filing)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Skipping filing %s for %s: %s", filing.filing_date, ticker, exc)
+            skipped += 1
             continue
 
         results.append(fin)
         if len(results) >= years:
             break
+
+    if skipped:
+        logger.info("Skipped %d filing(s) for %s due to parse errors", skipped, ticker)
 
     results.sort(key=lambda f: f.fiscal_year, reverse=True)
     return results

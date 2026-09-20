@@ -1,5 +1,8 @@
 """Property tests for the engine."""
 from decimal import Decimal
+from datetime import date
+
+import pytest
 
 from distval.engine import value
 from distval.macro import MacroAssumptions
@@ -25,6 +28,9 @@ _BASE_DRIVERS = dict(
 )
 
 
+_AS_OF = date(2024, 1, 1)
+
+
 def _val(**driver_overrides):
     d = {**_BASE_DRIVERS, **driver_overrides}
     drivers = Drivers(**d)
@@ -35,6 +41,7 @@ def _val(**driver_overrides):
         minority_interest=Decimal("0"),
         shares_diluted=Decimal("100"),
         price=None,
+        as_of=_AS_OF,
     )
 
 
@@ -51,8 +58,8 @@ def test_higher_stability_score_increases_value():
 
 
 def test_net_debt_decreases_equity_one_for_one():
-    base = value(Drivers(**_BASE_DRIVERS), MACRO, Decimal("200"), Decimal("0"), Decimal("100"), None)
-    more_debt = value(Drivers(**_BASE_DRIVERS), MACRO, Decimal("300"), Decimal("0"), Decimal("100"), None)
+    base = value(Drivers(**_BASE_DRIVERS), MACRO, Decimal("200"), Decimal("0"), Decimal("100"), None, _AS_OF)
+    more_debt = value(Drivers(**_BASE_DRIVERS), MACRO, Decimal("300"), Decimal("0"), Decimal("100"), None, _AS_OF)
     diff = base.equity_value - more_debt.equity_value
     assert float(diff) == pytest.approx(100.0, abs=0.01)
 
@@ -62,6 +69,3 @@ def test_zero_revenue_growth_implies_zero_delta_wc():
     # With flat revenue, every FCF year should be identical
     for fcf in val.fcf_path:
         assert float(fcf) == pytest.approx(float(val.fcf_path[0]), abs=0.001)
-
-
-import pytest

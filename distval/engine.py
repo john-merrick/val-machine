@@ -98,10 +98,10 @@ def value(
     minority_interest: Decimal,
     shares_diluted: Decimal,
     price: Decimal | None,
-    as_of: date | None = None,
+    as_of: date,
 ) -> Valuation:
-    if as_of is None:
-        as_of = date.today()
+    if shares_diluted <= 0:
+        raise ValueError("shares_diluted must be positive")
 
     dr = discount_rate(macro)
     tm = terminal_multiple(macro.market_avg_multiple, drivers.duration_score, drivers.stability_score)

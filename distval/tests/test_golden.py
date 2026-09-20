@@ -3,12 +3,15 @@ Golden case from PRD Section 7. These numbers must never be edited to
 accommodate a refactor — if they change, the engine is broken.
 """
 from decimal import Decimal
+from datetime import date
 
 import pytest
 
 from distval.engine import value
 from distval.macro import MacroAssumptions
 from distval.schema import Drivers
+
+_AS_OF = date(2024, 1, 1)
 
 
 MACRO = MacroAssumptions(
@@ -57,6 +60,7 @@ def test_golden_full_valuation():
         minority_interest=MINORITY_INTEREST,
         shares_diluted=SHARES,
         price=None,
+        as_of=_AS_OF,
     )
 
     # FCF each year = 75.00 (revenue flat → ΔWC = 0)

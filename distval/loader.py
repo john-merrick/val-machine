@@ -10,8 +10,21 @@ _COMPANIES_DIR = Path(__file__).parent / "companies"
 
 
 def load_drivers(ticker: str) -> Drivers:
-    path = _COMPANIES_DIR / f"{ticker.lower()}.yaml"
-    raw = yaml.safe_load(path.read_text())
+    if not ticker.replace("-", "").isalnum():
+        raise ValueError(f"Invalid ticker {ticker!r}: must be alphanumeric")
+    safe = ticker.strip().upper()
+    path = _COMPANIES_DIR / f"{safe.lower()}.yaml"
+    # Guard against path traversal — confirm resolution stays inside companies/
+    if not path.resolve().is_relative_to(_COMPANIES_DIR.resolve()):
+        raise ValueError(f"Ticker {ticker!r} resolves outside companies directory")
+    try:
+        raw = yaml.safe_load(path.read_text())
+    except FileNotFoundError:
+        raise FileNotFoundError(
+            f"No company config found for ticker {ticker!r}. Expected: {path}"
+        ) from None
+    except yaml.YAMLError as exc:
+        raise ValueError(f"Malformed YAML for {ticker!r} at {path}: {exc}") from exc
 
     # Coerce revenue list to Decimal
     raw["revenue"] = [Decimal(str(v)) for v in raw["revenue"]]

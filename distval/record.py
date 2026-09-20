@@ -3,7 +3,7 @@ Snapshot writer. Records each valuation run as a timestamped JSON file.
 Two runs with identical inputs produce identical hashes.
 """
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from distval.schema import Valuation
@@ -26,7 +26,7 @@ def write_snapshot(
     out_dir = snapshot_dir or _SNAPSHOTS_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    ts = timestamp or datetime.utcnow()
+    ts = timestamp or datetime.now(timezone.utc)
 
     payload = {
         "timestamp": ts.isoformat(),
