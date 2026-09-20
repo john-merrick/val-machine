@@ -24,7 +24,53 @@ pip install -e ".[dev]"
 
 ## Running the model
 
-There is no CLI entry point — the model is driven from Python. The typical workflow is:
+### CLI (recommended)
+
+After `pip install -e .`, the `distval` command is available:
+
+```bash
+distval POOL --net-debt 1469 --shares-diluted 39.5 --price 335 --as-of 2024-02-22
+```
+
+```
+====================================================
+  POOL  |  as of 2024-02-22
+====================================================
+  Discount rate:        9.0%
+  Terminal multiple:    16.11x
+  FCF path ($M):        [191  208  230  250  265]
+  Terminal value:       $    10,150.9M
+  Enterprise value:     $    10,979.2M
+  Net debt:             $     1,469.0M
+  Minority interest:    $         0.0M
+  Equity value:         $     9,510.2M
+  Value per share:      $       240.77
+  Current price:        $       335.00
+  Upside:               -28.1%
+====================================================
+  input hash:  3f9a...
+====================================================
+```
+
+**Required flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--net-debt M` | Net debt in millions (total_debt − cash) |
+| `--shares-diluted M` | Diluted shares in millions |
+
+**Optional flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--minority-interest M` | `0` | Minority interest in millions |
+| `--price USD` | — | Share price; enables upside calculation |
+| `--as-of YYYY-MM-DD` | today | Valuation date |
+| `--save` | off | Write JSON snapshot to `./snapshots/` |
+
+`python -m distval` also works if the console script isn't on your PATH.
+
+### Python API
 
 ```python
 from decimal import Decimal
@@ -88,9 +134,16 @@ history = fetch_financials("FAST", as_of=date(2024, 1, 1), years=10)
 
 This returns a list of `Financials` objects, most recent first, containing only filings available as of `as_of` (no lookahead bias).
 
+## Covered companies
+
+| Ticker | Company | Config |
+|--------|---------|--------|
+| FAST | Fastenal | `distval/companies/fast.yaml` |
+| POOL | Pool Corporation | `distval/companies/pool.yaml` |
+
 ## Adding a company
 
-1. Create `distval/companies/<ticker>.yaml` (lowercase filename, uppercase ticker field). Use `distval/companies/fast.yaml` as a reference.
+1. Create `distval/companies/<ticker>.yaml` (lowercase filename, uppercase ticker field). Use an existing config as a reference.
 
 2. Required fields:
 
@@ -116,7 +169,11 @@ stability_score: 5            # 1–10: through-cycle FCF consistency?
 other_elements: {}           # optional bridge items (e.g. surplus assets)
 ```
 
-3. Load and run:
+3. Run via CLI or Python API:
+
+```bash
+distval TICK --net-debt 100 --shares-diluted 50
+```
 
 ```python
 drivers = load_drivers("TICK")
@@ -133,6 +190,7 @@ The test suite includes:
 
 - **Golden case** (`test_golden.py`) — hand-computed reference numbers that must never change
 - **Property tests** (`test_engine.py`) — higher duration/stability scores increase value; debt reduces equity one-for-one; flat revenue implies zero ΔWC
+- **CLI tests** (`test_cli.py`) — parser, exit codes, output fields, snapshot writing, determinism, POOL sanity check
 - **Normalisation tests** (`test_normalise.py`) — flag detection logic
 - **Schema tests** (`test_schema.py`) — validation rules on `Drivers` and `Financials`
 
@@ -145,6 +203,8 @@ pytest --cov=distval --cov-report=term-missing
 
 ```
 distval/
+  cli.py          # CLI entry point — distval <ticker> [flags]
+  __main__.py     # python -m distval support
   schema.py       # Pydantic contracts — Financials, Drivers, Valuation
   macro.py        # Shared macro assumptions: RFR, ERP, market multiple
   engine.py       # Pure valuation functions — no I/O, no network, no clock
@@ -152,7 +212,7 @@ distval/
   ingest.py       # SEC EDGAR -> Financials (requires EDGAR_IDENTITY)
   normalise.py    # Reported financials -> mid-cycle drivers + flags
   record.py       # Write JSON snapshot per run
-  companies/      # One YAML per ticker
+  companies/      # One YAML per ticker (fast.yaml, pool.yaml, ...)
   tests/
 snapshots/        # Written by record.py (gitignored)
 ```

@@ -20,6 +20,9 @@ dev = [
     "hypothesis>=6.0",
 ]
 
+[project.scripts]
+distval = "distval.cli:main"
+
 [tool.setuptools.packages.find]
 include = ["distval*"]
 
