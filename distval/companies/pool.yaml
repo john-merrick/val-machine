@@ -1,65 +1,70 @@
-# Pool Corporation (POOL) — manually keyed from 10-K filings
-# Source: POOL 10-K FY2023 filed 2024-02-22 (primary), with 10-year history for mid-cycle derivation.
+# Pool Corporation (POOL) — derived from distval ingest + normalise
+# Source: POOL 10-K FY2025 filed 2026-02-26 (primary), 10-year history 2016–2025 for mid-cycle derivation.
 # All dollar values in millions USD.
 #
 # Business: World's largest wholesale distributor of swimming pool and related products.
 # ~60-65% of revenue is non-discretionary maintenance/repair; rest is new construction and remodeling.
-# Revenue peaked at $6,179M in FY2022 (pandemic pool-build boom + COVID demand pull-forward),
-# normalising to $5,305M in FY2023. Recovery forecast assumes housing activity rebounds gradually.
+# Revenue peaked at $6,180M in FY2022 (pandemic pool-build boom), then declined to FY2025 trough of
+# $5,289M. Recovery forecast assumes housing activity and new-pool starts rebound gradually from 2026.
 #
-# Mid-cycle gross margin derivation (FY2014–2023, per 10-K segment history):
-#   2014: 28.2%, 2015: 28.6%, 2016: 28.6%, 2017: 28.7%, 2018: 28.9%,
-#   2019: 29.1%, 2020: 28.4%, 2021: 29.3%, 2022: 29.7%, 2023: 28.9%
-#   Mean: 28.8% — very stable; no structural distortion years.
-#   Mid-cycle gross margin used: 29.0% (slight premium to mean; pricing power has held through cycles).
+# distval flags (FY2025): [!] inventory_outpacing_revenue  [!] capex_exceeds_da
 #
-# Mid-cycle opex/sales (SG&A as % of revenue, 10-year avg ~17.8%):
-#   FY2023: SG&A $990M / revenue $5,305M = 18.7% (elevated; volume deleveraging from 2022 peak).
-#   Normalised to 18.0% at mid-cycle scale ($5,700M+), consistent with FY2018-2019 levels.
+# Mid-cycle gross margin derivation (FY2016–2025, per distval normalise):
+#   2016: 28.8%, 2017: 28.9%, 2018: 29.0%, 2019: 28.9%, 2020: 28.7%,
+#   2021: 30.5%, 2022: 31.3%, 2023: 30.0%, 2024: 29.7%, 2025: 29.7%
+#   10-yr mean: 29.6% (pandemic years inflate slightly; structural pricing power is real).
+#   Mid-cycle gross margin used: 29.6%.
 #
-# Mid-cycle EBIT = Revenue * (gross_margin - opex_pct) = 5,700 * (0.290 - 0.180) = 5,700 * 0.110 = 627
-# Rounded to 630 as a conservatively estimated mid-cycle figure.
+# Mid-cycle opex/sales (gross margin – EBIT margin, 10-yr avg per distval normalise):
+#   10-yr avg opex: 17.4%.  FY2025 elevated at 18.8% due to volume deleverage off trough.
+#   Mid-cycle opex used: 17.4% (consistent with FY2018–2019 pre-pandemic and FY2024 levels).
+#
+# Mid-cycle EBIT = Revenue × (gross_margin – opex_pct) = 5,700 × (0.296 – 0.174) = 5,700 × 0.122 ≈ 695
+# Rounded to 695 as conservatively estimated mid-cycle figure.
 
 ticker: POOL
 forecast_years: 5
 
-# Revenue forecast: Recovery from FY2023 trough ($5,305M) at ~5% CAGR as housing normalises.
-# New pool starts depressed in FY2023-24; rebound expected FY2025+ as affordability improves.
+# Revenue forecast: Recovery from FY2025 trough ($5,289M). New pool starts still depressed in 2025–26;
+# rebound expected from 2027 as housing affordability normalises. ~4–5% CAGR implied.
 revenue:
-  - 5350.0
-  - 5620.0
-  - 5900.0
-  - 6200.0
-  - 6500.0
+  - 5400.0
+  - 5600.0
+  - 5850.0
+  - 6100.0
+  - 6350.0
 
-# Gross margin: stable band; creeping toward 29.5% as pricing leverage reasserts post-trough.
+# Gross margin: stabilised near 29.7% post-trough; slight improvement as volume recovers.
 gross_margin:
-  - 0.291
-  - 0.292
-  - 0.294
-  - 0.295
-  - 0.295
+  - 0.297
+  - 0.297
+  - 0.298
+  - 0.299
+  - 0.299
 
-# Opex as % of sales (SG&A incl. D&A — engine treats d_and_a == capex so D&A nets out of FCF).
-# Improving as volume recovers and fixed costs are leveraged.
+# Opex as % of sales. FY2025 elevated at 18.8%; improving as fixed costs are leveraged on recovery.
 opex_pct_sales:
-  - 0.184
-  - 0.182
+  - 0.185
   - 0.180
-  - 0.179
-  - 0.179
+  - 0.178
+  - 0.176
+  - 0.174
 
 # Working capital days — computed as days-of-revenue (engine base is revenue, not COGS).
-# FY2023 actuals: inventory $1,040M, receivables $430M, payables $415M; revenue $5,305M.
-dio: 71.6   # inventory days: $1,040M / $5,305M * 365
-dso: 29.6   # receivable days: $430M / $5,305M * 365
-dpo: 28.6   # payable days: $415M / $5,305M * 365
+# 10-yr averages from distval normalise (2016–2025):
+#   DIO: avg 83.9 d  (FY2025 spike to 100.4 d flagged; mid-cycle avg used)
+#   DSO: avg  9.3 d  (old YAML had 29.6 d — corrected; POOL is predominantly cash/short-term sales)
+#   DPO: avg 31.5 d  (FY2025 spike to 45.0 d; mid-cycle avg used)
+dio: 83.9
+dso: 9.3
+dpo: 31.5
 
-maintenance_capex_pct_sales: 0.005  # FY2023: ~$26M / $5,305M ≈ 0.5% (very asset-light distributor)
-tax_rate: 0.254                     # FY2023 effective rate 25.4%
+# FY2024–2025 capex running ~$57–60M / ~$5,300M rev ≈ 1.06–1.12%.  Old YAML figure (0.5%) was understated.
+maintenance_capex_pct_sales: 0.010
+tax_rate: 0.254                     # FY2023 effective rate 25.4%; no update from distval
 
-# Mid-cycle EBIT: $5,700M mid-cycle revenue * 11.0% mid-cycle EBIT margin
-mid_cycle_ebit: 630.0
+# Mid-cycle EBIT: $5,700M mid-cycle revenue × 12.2% mid-cycle EBIT margin (29.6% GM – 17.4% opex)
+mid_cycle_ebit: 695.0
 
 # Quality scores — dominant scale in a consolidating distribution channel
 duration_score: 8    # installed base of 5-6M US pools drives recurring maintenance demand
@@ -68,10 +73,10 @@ stability_score: 7   # 60-65% maintenance/repair is non-discretionary; new const
 # Bridge items (in millions) — no material non-operating assets to add
 other_elements: {}
 
-# Balance sheet (FY2023, in millions) — for reference; passed at CLI call site
-# total_debt: 1526.0
-# cash: 57.0
-# net_debt: 1469.0
-# shares_diluted: 39.5
+# Balance sheet (FY2025 from distval ingest, in millions)
+# total_debt: 1199.5
+# cash: 105.0
+# net_debt: 1094.5
+# shares_diluted: ~39.5  (FY2023 figure; verify against FY2025 10-K — POOL has been buying back shares)
 # minority_interest: 0.0
-# spot_price: ~$335 (approx at time of model build, Feb 2024)
+# spot_price: ~$300 (verify at run time)
