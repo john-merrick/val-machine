@@ -26,8 +26,40 @@ class Financials(BaseModel):
     lifo_reserve: Decimal | None = None
 
 
-class Drivers(BaseModel):
-    """Analyst judgement. Lives in companies/<ticker>.yaml."""
+class EngineInputs(BaseModel):
+    """
+    The common intermediate. Produced by an industry adapter from its
+    Drivers. Consumed by engine.py exclusively. Contains no industry
+    concepts — only the quantities the DCF arithmetic needs.
+    """
+
+    industry: str = "distributor"
+    ticker: str
+    forecast_years: int
+    fcf_path: list[Decimal]
+    terminal_nopat: Decimal
+    duration_score: int
+    stability_score: int
+    other_elements: dict[str, Decimal] = {}
+
+    @field_validator("duration_score", "stability_score")
+    @classmethod
+    def _score_range(cls, v: int) -> int:
+        if not 1 <= v <= 10:
+            raise ValueError("score must be between 1 and 10")
+        return v
+
+    @model_validator(mode="after")
+    def _fcf_length(self) -> "EngineInputs":
+        if len(self.fcf_path) != self.forecast_years:
+            raise ValueError(
+                f"fcf_path must have {self.forecast_years} entries, got {len(self.fcf_path)}"
+            )
+        return self
+
+
+class DistributorDrivers(BaseModel):
+    """Analyst judgement for distributors. Lives in companies/<ticker>.yaml."""
 
     ticker: str
     forecast_years: int
@@ -49,8 +81,15 @@ class Drivers(BaseModel):
 
     other_elements: dict[str, Decimal] = {}
 
+    @field_validator("forecast_years")
+    @classmethod
+    def _min_forecast_years(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError("forecast_years must be at least 1")
+        return v
+
     @model_validator(mode="after")
-    def _list_lengths(self) -> "Drivers":
+    def _list_lengths(self) -> "DistributorDrivers":
         n = self.forecast_years
         if len(self.revenue) != n:
             raise ValueError(f"revenue must have {n} entries, got {len(self.revenue)}")
@@ -75,7 +114,12 @@ class Drivers(BaseModel):
         return v
 
 
+# Backward-compatible alias — existing code that imports Drivers continues to work.
+Drivers = DistributorDrivers
+
+
 class Valuation(BaseModel):
+    industry: str = "distributor"
     ticker: str
     as_of: date
     input_hash: str

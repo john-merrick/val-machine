@@ -108,6 +108,7 @@ class TestMain:
 
         payload = json.loads(snapshots[0].read_text())
         assert payload["ticker"] == "POOL"
+        assert payload["industry"] == "distributor"
         assert "enterprise_value" in payload
         assert "value_per_share" in payload
 
@@ -127,9 +128,9 @@ class TestMain:
         from distval.engine import value
         from distval.macro import DEFAULT_MACRO
 
-        drivers = load_drivers("POOL")
+        engine_inputs = load_drivers("POOL")
         val = value(
-            drivers=drivers,
+            engine_inputs=engine_inputs,
             macro=DEFAULT_MACRO,
             net_debt=Decimal("1469"),
             minority_interest=Decimal("0"),
@@ -139,8 +140,7 @@ class TestMain:
         )
         assert val.value_per_share > 0
         assert val.enterprise_value > 0
-        # Equity = EV - net_debt, should still be positive for a quality compounder
         assert val.equity_value > 0
-        # Upside should be a finite float
         assert val.upside_pct is not None
         assert isinstance(val.upside_pct, float)
+        assert val.industry == "distributor"

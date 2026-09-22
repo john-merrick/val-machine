@@ -8,6 +8,7 @@ from datetime import date
 import pytest
 
 from distval.engine import value
+from distval.industries.distributor import DistributorAdapter
 from distval.macro import MacroAssumptions
 from distval.schema import Drivers
 
@@ -53,8 +54,9 @@ def test_golden_terminal_multiple():
 
 
 def test_golden_full_valuation():
+    engine_inputs = DistributorAdapter().to_engine_inputs(DRIVERS)
     val = value(
-        drivers=DRIVERS,
+        engine_inputs=engine_inputs,
         macro=MACRO,
         net_debt=NET_DEBT,
         minority_interest=MINORITY_INTEREST,

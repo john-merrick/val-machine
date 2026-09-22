@@ -6,36 +6,27 @@ import pytest
 
 from distval.engine import value
 from distval.macro import MacroAssumptions
-from distval.schema import Drivers
+from distval.schema import EngineInputs
 
 
 MACRO = MacroAssumptions()
 
-_BASE_DRIVERS = dict(
+_BASE = dict(
     ticker="PROP",
     forecast_years=5,
-    revenue=[Decimal("1000")] * 5,
-    gross_margin=[0.30] * 5,
-    opex_pct_sales=[0.20] * 5,
-    dio=60.0,
-    dso=45.0,
-    dpo=50.0,
-    maintenance_capex_pct_sales=0.02,
-    tax_rate=0.25,
-    mid_cycle_ebit=Decimal("100"),
+    fcf_path=[Decimal("75")] * 5,
+    terminal_nopat=Decimal("75"),
     duration_score=5,
     stability_score=5,
 )
 
-
 _AS_OF = date(2024, 1, 1)
 
 
-def _val(**driver_overrides):
-    d = {**_BASE_DRIVERS, **driver_overrides}
-    drivers = Drivers(**d)
+def _val(**overrides):
+    inputs = EngineInputs(**{**_BASE, **overrides})
     return value(
-        drivers=drivers,
+        engine_inputs=inputs,
         macro=MACRO,
         net_debt=Decimal("200"),
         minority_interest=Decimal("0"),
@@ -58,14 +49,42 @@ def test_higher_stability_score_increases_value():
 
 
 def test_net_debt_decreases_equity_one_for_one():
-    base = value(Drivers(**_BASE_DRIVERS), MACRO, Decimal("200"), Decimal("0"), Decimal("100"), None, _AS_OF)
-    more_debt = value(Drivers(**_BASE_DRIVERS), MACRO, Decimal("300"), Decimal("0"), Decimal("100"), None, _AS_OF)
+    base = _val()
+    more_debt = value(
+        engine_inputs=EngineInputs(**_BASE),
+        macro=MACRO,
+        net_debt=Decimal("300"),
+        minority_interest=Decimal("0"),
+        shares_diluted=Decimal("100"),
+        price=None,
+        as_of=_AS_OF,
+    )
     diff = base.equity_value - more_debt.equity_value
     assert float(diff) == pytest.approx(100.0, abs=0.01)
 
 
-def test_zero_revenue_growth_implies_zero_delta_wc():
+def test_flat_fcf_path_all_equal():
     val = _val()
-    # With flat revenue, every FCF year should be identical
     for fcf in val.fcf_path:
         assert float(fcf) == pytest.approx(float(val.fcf_path[0]), abs=0.001)
+
+
+def test_engine_does_not_import_industries():
+    """Seam enforcement: engine.py must not import from distval.industries."""
+    import ast
+    import pathlib
+
+    engine_src = (pathlib.Path(__file__).parent.parent / "engine.py").read_text()
+    tree = ast.parse(engine_src)
+
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            if isinstance(node, ast.ImportFrom) and node.module:
+                assert not node.module.startswith("distval.industries"), (
+                    f"engine.py imports from distval.industries: {node.module}"
+                )
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    assert not alias.name.startswith("distval.industries"), (
+                        f"engine.py imports from distval.industries: {alias.name}"
+                    )

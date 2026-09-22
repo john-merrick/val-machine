@@ -1,20 +1,26 @@
-"""Load a company config from companies/<ticker>.yaml into a Drivers object."""
+"""Load a company config from companies/<ticker>.yaml into EngineInputs via its industry adapter."""
+import importlib
 from decimal import Decimal
 from pathlib import Path
 
 import yaml
 
-from distval.schema import Drivers
+from distval.schema import EngineInputs
 
 _COMPANIES_DIR = Path(__file__).parent / "companies"
 
 
-def load_drivers(ticker: str) -> Drivers:
+def _load_adapter_class(dotted_path: str):
+    module_path, cls_name = dotted_path.rsplit(".", 1)
+    module = importlib.import_module(module_path)
+    return getattr(module, cls_name)
+
+
+def load_drivers(ticker: str) -> EngineInputs:
     if not ticker.replace("-", "").isalnum():
         raise ValueError(f"Invalid ticker {ticker!r}: must be alphanumeric")
     safe = ticker.strip().upper()
     path = _COMPANIES_DIR / f"{safe.lower()}.yaml"
-    # Guard against path traversal — confirm resolution stays inside companies/
     if not path.resolve().is_relative_to(_COMPANIES_DIR.resolve()):
         raise ValueError(f"Ticker {ticker!r} resolves outside companies directory")
     try:
@@ -26,14 +32,22 @@ def load_drivers(ticker: str) -> Drivers:
     except yaml.YAMLError as exc:
         raise ValueError(f"Malformed YAML for {ticker!r} at {path}: {exc}") from exc
 
-    # Coerce revenue list to Decimal
-    raw["revenue"] = [Decimal(str(v)) for v in raw["revenue"]]
+    industry = raw.get("industry", "distributor")
 
-    # Coerce other_elements values to Decimal
-    if "other_elements" in raw:
-        raw["other_elements"] = {k: Decimal(str(v)) for k, v in raw["other_elements"].items()}
+    from distval.industries.registry import REGISTRY
+    adapter_path = REGISTRY.get(industry)
+    if adapter_path is None:
+        raise ValueError(
+            f"Unknown industry {industry!r} for {ticker!r}. "
+            f"Registered: {list(REGISTRY.keys())}"
+        )
 
-    # Coerce mid_cycle_ebit to Decimal
-    raw["mid_cycle_ebit"] = Decimal(str(raw["mid_cycle_ebit"]))
+    adapter_cls = _load_adapter_class(adapter_path)
+    adapter = adapter_cls()
 
-    return Drivers(**raw)
+    raw = adapter.coerce_raw(raw)
+    # Strip loader-only keys that aren't part of the drivers schema.
+    schema_fields = set(adapter.drivers_schema().model_fields.keys())
+    raw_for_schema = {k: v for k, v in raw.items() if k in schema_fields}
+    drivers = adapter.drivers_schema()(**raw_for_schema)
+    return adapter.to_engine_inputs(drivers)

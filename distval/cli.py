@@ -29,7 +29,7 @@ def _add_ticker_and_date(p: argparse.ArgumentParser) -> None:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="distval",
-        description="Systematic valuation engine for US specialty distributors.",
+        description="Systematic valuation engine for US public companies.",
     )
     sub = p.add_subparsers(dest="command", required=True,
                            metavar="{value,ingest,normalise}")
@@ -66,7 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
 def _print_valuation(val: Valuation) -> None:
     w = 52
     print(f"\n{'=' * w}")
-    print(f"  {val.ticker}  |  as of {val.as_of}")
+    print(f"  {val.ticker}  |  {val.industry}  |  as of {val.as_of}")
     print(f"{'=' * w}")
     fcf_str = "  ".join(f"{float(f):,.0f}" for f in val.fcf_path)
     print(f"  Discount rate:        {val.discount_rate:.1%}")
@@ -90,13 +90,13 @@ def _print_valuation(val: Valuation) -> None:
 def _cmd_value(args: argparse.Namespace) -> int:
     as_of = args.as_of or date.today()
     try:
-        drivers = load_drivers(args.ticker)
+        engine_inputs = load_drivers(args.ticker)
     except (FileNotFoundError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
     val = _value(
-        drivers=drivers,
+        engine_inputs=engine_inputs,
         macro=DEFAULT_MACRO,
         net_debt=args.net_debt,
         minority_interest=args.minority_interest,

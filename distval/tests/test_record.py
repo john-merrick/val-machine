@@ -6,6 +6,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from distval.engine import value
+from distval.industries.distributor import DistributorAdapter
 from distval.macro import MacroAssumptions
 from distval.record import write_snapshot
 from distval.schema import Drivers
@@ -25,11 +26,12 @@ _DRIVERS = Drivers(
     duration_score=5,
     stability_score=5,
 )
+_ENGINE_INPUTS = DistributorAdapter().to_engine_inputs(_DRIVERS)
 
 
 def _make_val():
     return value(
-        drivers=_DRIVERS,
+        engine_inputs=_ENGINE_INPUTS,
         macro=_MACRO,
         net_debt=Decimal("100"),
         minority_interest=Decimal("0"),
@@ -53,6 +55,7 @@ def test_snapshot_written_and_readable():
         assert path.exists()
         data = json.loads(path.read_text())
         assert data["ticker"] == "SNAP"
+        assert data["industry"] == "distributor"
         assert data["input_hash"] == val.input_hash
 
 

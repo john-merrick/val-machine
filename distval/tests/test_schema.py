@@ -4,7 +4,7 @@ from decimal import Decimal
 from datetime import date
 from pydantic import ValidationError
 
-from distval.schema import Drivers, Financials, Valuation
+from distval.schema import Drivers, EngineInputs, Financials, Valuation
 
 
 def make_drivers(**overrides):
@@ -67,6 +67,52 @@ def test_drivers_tax_rate_implausible():
     with pytest.raises(ValidationError):
         Drivers(**make_drivers(tax_rate=1.01))
 
+
+# --- EngineInputs ---
+
+def make_engine_inputs(**overrides):
+    base = dict(
+        ticker="TEST",
+        forecast_years=3,
+        fcf_path=[Decimal("75")] * 3,
+        terminal_nopat=Decimal("75"),
+        duration_score=6,
+        stability_score=5,
+    )
+    base.update(overrides)
+    return base
+
+
+def test_engine_inputs_valid():
+    ei = EngineInputs(**make_engine_inputs())
+    assert ei.ticker == "TEST"
+    assert ei.industry == "distributor"  # default
+
+
+def test_engine_inputs_fcf_length_mismatch():
+    with pytest.raises(ValidationError):
+        EngineInputs(**make_engine_inputs(fcf_path=[Decimal("75")] * 2))  # len=2 != 3
+
+
+def test_engine_inputs_score_out_of_range():
+    with pytest.raises(ValidationError):
+        EngineInputs(**make_engine_inputs(duration_score=0))
+    with pytest.raises(ValidationError):
+        EngineInputs(**make_engine_inputs(stability_score=11))
+
+
+def test_engine_inputs_industry_preserved():
+    ei = EngineInputs(**make_engine_inputs(industry="saas"))
+    assert ei.industry == "saas"
+
+
+def test_distributor_drivers_forecast_years_zero_rejected():
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        Drivers(**make_drivers(forecast_years=0, revenue=[], gross_margin=[], opex_pct_sales=[]))
+
+
+# --- Financials ---
 
 def test_financials_valid():
     f = Financials(

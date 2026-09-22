@@ -1,6 +1,6 @@
 """
-Snapshot writer. Records each valuation run as a timestamped JSON file.
-Two runs with identical inputs produce identical hashes.
+Snapshot writer. Records each valuation run as a deterministic JSON file.
+Two runs with identical inputs produce identical hashes and overwrite cleanly.
 """
 import json
 from datetime import datetime, timezone
@@ -16,13 +16,6 @@ def write_snapshot(
     snapshot_dir: Path | None = None,
     timestamp: datetime | None = None,
 ) -> Path:
-    """
-    Write a valuation snapshot to disk.
-
-    Returns the path to the written file.
-    The filename is deterministic: <ticker>_<input_hash[:12]>.json
-    so identical inputs produce an identical filename and overwrite cleanly.
-    """
     out_dir = snapshot_dir or _SNAPSHOTS_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -30,6 +23,7 @@ def write_snapshot(
 
     payload = {
         "timestamp": ts.isoformat(),
+        "industry": val.industry,
         "ticker": val.ticker,
         "as_of": val.as_of.isoformat(),
         "input_hash": val.input_hash,

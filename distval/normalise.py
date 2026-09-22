@@ -1,7 +1,6 @@
 """
 Convert reported financial history into mid-cycle drivers and surface flags.
-This module is kept fully separate from engine.py — it is the most likely
-module to change as normalisation rules evolve.
+Separate from engine.py — the most likely module to change as normalisation rules evolve.
 
 No auto-adjustment of flags. Flags are reported; a human decides.
 """
@@ -12,9 +11,13 @@ import statistics
 from distval.schema import Financials
 
 
+# ---------------------------------------------------------------------------
+# Distributor flags
+# ---------------------------------------------------------------------------
+
 @dataclass
 class NormalisationFlags:
-    """Red flags surfaced to the analyst. None are auto-corrected."""
+    """Red flags surfaced to the analyst for distributor businesses."""
 
     capex_exceeds_da: bool = False
     working_capital_outpacing_revenue: bool = False
@@ -24,17 +27,46 @@ class NormalisationFlags:
     organic_growth_unclear: bool = False
 
     def any_set(self) -> bool:
-        return any(
-            [
-                self.capex_exceeds_da,
-                self.working_capital_outpacing_revenue,
-                self.elevated_gross_margin,
-                self.rising_leverage_falling_roic,
-                self.inventory_outpacing_revenue,
-                self.organic_growth_unclear,
-            ]
-        )
+        return any(vars(self).values())
 
+
+# ---------------------------------------------------------------------------
+# Industrial/manufacturing flags
+# ---------------------------------------------------------------------------
+
+@dataclass
+class IndustrialNormalisationFlags:
+    """Red flags surfaced to the analyst for industrial/manufacturing businesses."""
+
+    capex_to_revenue_elevated: bool = False
+    backlog_declining_vs_guide: bool = False
+    asset_turnover_deteriorating: bool = False
+    acquisition_contribution_unquantified: bool = False
+
+    def any_set(self) -> bool:
+        return any(vars(self).values())
+
+
+# ---------------------------------------------------------------------------
+# SaaS/software flags
+# ---------------------------------------------------------------------------
+
+@dataclass
+class SaaSNormalisationFlags:
+    """Red flags surfaced to the analyst for SaaS/software businesses."""
+
+    nrr_declining: bool = False
+    s_and_m_accelerating_vs_arr_growth: bool = False
+    gross_margin_compressing_at_scale: bool = False
+    cohort_data_absent: bool = False
+
+    def any_set(self) -> bool:
+        return any(vars(self).values())
+
+
+# ---------------------------------------------------------------------------
+# Distributor normalisation functions (unchanged from v0.1)
+# ---------------------------------------------------------------------------
 
 def mean_gross_margin(history: list[Financials]) -> float:
     """Average gross margin over the full history (minimum 10 years required)."""
