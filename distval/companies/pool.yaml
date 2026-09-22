@@ -55,9 +55,9 @@ opex_pct_sales:
 #   DIO: avg 83.9 d  (FY2025 spike to 100.4 d flagged; mid-cycle avg used)
 #   DSO: avg  9.3 d  (old YAML had 29.6 d — corrected; POOL is predominantly cash/short-term sales)
 #   DPO: avg 31.5 d  (FY2025 spike to 45.0 d; mid-cycle avg used)
-dio: 83.9
-dso: 9.3
-dpo: 31.5
+dio: 140 # days inventory oustanding - implies 2.6 turns
+dso: 27.6 # days sales outstanding
+dpo: 31.5 # days payable outstanding
 
 # FY2024–2025 capex running ~$57–60M / ~$5,300M rev ≈ 1.06–1.12%.  Old YAML figure (0.5%) was understated.
 maintenance_capex_pct_sales: 0.010
